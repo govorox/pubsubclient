@@ -109,6 +109,10 @@ private:
    uint16_t port;
    Stream* stream;
    int _state;
+
+   uint8_t qosPub = MQTTQOS0;
+   uint16_t pubMsgId = 0, ackMsgId = 0;
+
 public:
    PubSubClient();
    PubSubClient(Client& client);
@@ -167,6 +171,21 @@ public:
    boolean loop();
    boolean connected();
    int state();
+
+
+   // get default QoS level for published
+   uint8_t getPubQoS() { return qosPub; }
+   // set default QoS level for published
+   uint8_t setPubQoS(uint8_t qos) { 
+      qosPub = qos;
+      return qosPub; 
+   }
+   // returns Id of the last published message (QoS > 0)
+   uint16_t getLastPublishedId() { return pubMsgId; }
+   // returns Id of the last message acknowleged by server (QoS > 0)
+   uint16_t getLastConfirmedId() { return ackMsgId; }
+   // ckeck if last published message has been received (QoS > 0)
+   boolean isLastReceived() { return ackMsgId == pubMsgId; }
 };
 
 

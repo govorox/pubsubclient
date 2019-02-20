@@ -352,8 +352,13 @@ boolean PubSubClient::loop() {
                     buffer[0] = MQTTPINGRESP;
                     buffer[1] = 0;
                     _client->write(buffer,2);
+                    log_d("Received PINGREQ");
                 } else if (type == MQTTPINGRESP) {
                     pingOutstanding = false;
+                    log_d("Received PINGRESP");
+                } else if (type == MQTTPUBACK) {
+                    ackMsgId = (buffer[2] << 8) | buffer[3];
+                    log_d("Received PUBACK:id=%d", ackMsgId);
                 }
             } else if (!connected()) {
                 // readPacket has closed the connection
@@ -383,17 +388,39 @@ boolean PubSubClient::publish(const char* topic, const uint8_t* payload, unsigne
             // Too long
             return false;
         }
-        // Leave room in the buffer for header and variable length field
-        uint16_t length = MQTT_MAX_HEADER_SIZE;
-        length = writeString(topic,buffer,length);
-        uint16_t i;
-        for (i=0;i<plength;i++) {
-            buffer[length++] = payload[i];
-        }
+
         uint8_t header = MQTTPUBLISH;
         if (retained) {
             header |= 1;
         }
+        if (qosPub > 0) {
+            header |= MQTTQOS1;
+        }
+
+        // Leave room in the buffer for header and variable length field
+        uint16_t length = MQTT_MAX_HEADER_SIZE;
+        length = writeString(topic,buffer,length);
+
+        if (header & MQTTQOS1)
+        {
+            // if not DUP, increment id
+            if ((header & 0x08) == 0) {
+                pubMsgId++;
+            }
+            if (pubMsgId == 0) {
+                pubMsgId = 1;
+            }
+            // inject message id after topic
+            buffer[length++] = (pubMsgId >> 8);
+            buffer[length++] = (pubMsgId & 0xFF);
+            log_d("PUB[QoS=1]:id=%d", pubMsgId);    
+        }
+
+        uint16_t i;
+        for (i=0;i<plength;i++) {
+            buffer[length++] = payload[i];
+        }
+        
         return write(header,buffer,length-MQTT_MAX_HEADER_SIZE);
     }
     return false;
